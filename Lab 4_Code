@@ -1,0 +1,64 @@
+import pandas as pd
+import geopandas as gpd
+import numpy as np
+from shapely.geometry import Point
+import random
+
+# Function to generate random points within features
+def generate_random_samples(layer, id_field):
+    sample_dict = {"huc8id": [], "geometry": []}
+    random.seed(0)
+
+for idx, row in layer.iterrows():
+    boundary = row.geometry.bounds
+    area = row.geometry.area / 1000000
+    num_density = round(0.05 * area)
+    i = 0
+
+   while i < num_density:
+        x = random.uniform(boundary[0], boundary[2])
+        y = random.uniform(boundary[1], boundary[3])
+        point = Point(x, y)
+
+if row.geometry.contains(point):
+    id_val = row[id_field]
+    if id_field == "HUC12":
+        id_val = id_val[0:8]
+    sample_dict["huc8id"].append(id_val)
+    sample_dict["geometry"].append(point)
+    i += 1
+return sample_dict
+
+
+# Main Code
+# Read layers
+huc8 = gpd.read_file("lab4.gpkg", layer="wdbhuc8")
+huc12=gpd.read_file("lab4.gpkg",layer="wdbhuc12")
+soil=gpd.read_file("lab4.gpkg", layer="ssurgo_mapunits_lab3")
+
+# Generate samples
+huc8sample = generate_random_samples(huc8, "HUC8")
+huc12sample = generate_random_samples(huc12, "HUC12")
+
+
+#Part II: Summarize the SSURGO attributes by level of sampling
+
+# HUC8 processing
+huc8_sampdf = pd.DataFrame(huc8sample)
+huc8gdf = gpd.GeoDataFrame(huc8_sampdf, crs=huc8.crs)
+huc_points = gpd.overlay(huc8gdf, soil, how='intersection')
+aws_means8 = huc_points.groupby(by=["huc8id"])["aws0150"].agg(['mean'])
+# print(aws_means8)
+
+# HUC12 processing
+huc12_sampdf = pd.DataFrame(huc12sample)
+huc12gdf = gpd.GeoDataFrame(huc12_sampdf, crs=huc8.crs)
+huc_points12 = gpd.overlay(huc12gdf, soil, how='intersection')
+aws_means12 = huc_points12.groupby(by=["huc8id"])["aws0150"].agg(['mean'])
+# print(aws_means12)
+
+# Print results
+for idx, mean in aws_means8.iterrows():
+print(f'In the huc 8 sample, The mean for the {idx} is {mean}')
+for idx, mean in aws_means12.iterrows():
+print(f'In the huc 12 sample, The mean for the {idx} is {mean}')
